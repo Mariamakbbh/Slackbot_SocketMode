@@ -1,0 +1,23 @@
+apiVersion: skaffold/v2beta14
+kind: Config
+build:
+  artifacts:
+  - image: ghcr.io/Mariamakbbh/slack-socket-mode
+    sync:
+      infer:
+      - "main.go"
+      - "go.mod"
+      - "go.sum"
+    custom:
+      buildCommand: ./buildx.sh
+      dependencies:
+        dockerfile:
+          path: Dockerfile
+  local:
+    push: true
+
+
+deploy:
+  kustomize:
+    paths:
+      - "deployments/kustomize"
