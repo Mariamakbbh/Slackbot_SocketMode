@@ -13,8 +13,11 @@ ENV GO111MODULE=on
 ENV CGO_ENABLED=0
 ENV GO_BIN=/go/bin/app
 ENV GRPC_HEALTH_PROBE_VERSION=v0.3.6
-ENV APP_NAME=$app_name
+
 RUN apt-get update
+RUN apt-get install -y build-essential git unzip curl
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" 
+
 RUN unzip awscliv2.zip
 RUN ./aws/install
 RUN aws --version
