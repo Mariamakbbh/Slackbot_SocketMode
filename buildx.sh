@@ -9,7 +9,7 @@
 #  (2) update the corresponding node-affinities in k8s/pod.yaml.
 
 # The platforms to build.
-platforms="linux/amd64,linux/arm,linux/arm64,darwin/arm64"
+platforms="linux/amd64,linux/arm,linux/arm64"
 
 # `buildx` uses named _builder_ instances configured for specific platforms.
 # This script creates a `skaffold-builder` as required.
