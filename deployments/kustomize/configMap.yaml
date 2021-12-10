@@ -1,0 +1,8 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: slack-socket-mode
+data:
+  SLACK_AUTH_TOKEN: dummy # changeme
+  SLACK_APP_TOKEN: dummy # changeme

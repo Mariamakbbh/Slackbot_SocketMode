@@ -1,0 +1,48 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slack-socket-mode
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: slack-socket-mode
+  template:
+    metadata:
+      labels:
+        app: slack-socket-mode
+      # annotations:
+      #   prometheus.io/path: /api/v1/metrics
+      #   prometheus.io/scrape: "true"
+      #   prometheus.io/port: "8000"
+    spec:
+      containers:
+      - image: ghcr.io/Mariamakbbh/slack-socket-mode
+        name: slack-socket-mode
+        envFrom:
+          - configMapRef:
+              name: slack-socket-mode
+        # add status endpoint for healthcheck
+        # ports:
+        # - name: http
+        #   containerPort: 8000
+        # readinessProbe:
+        #   httpGet:
+        #     path: "/api/v1/status"
+        #     port: 8000
+        #   initialDelaySeconds: 5
+        #   failureThreshold: 10
+        #   timeoutSeconds: 5
+        #   periodSeconds: 30
+        # livenessProbe:
+        #   httpGet:
+        #     path: "/api/v1/status"
+        #     port: 8000
+        #   initialDelaySeconds: 5
+        #   failureThreshold: 10
+        #   timeoutSeconds: 5
+        #   periodSeconds: 30
+      # needed to pull image
+      imagePullSecrets:
+      - name: regcred-github
