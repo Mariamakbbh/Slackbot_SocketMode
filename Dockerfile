@@ -1,6 +1,6 @@
 FROM --platform=$BUILDPLATFORM golang:1.16 AS builder
 
-LABEL org.opencontainers.image.source=https://github.com/Mariamakbbh/Slackbot_SocketMode
+LABEL org.opencontainers.image.source=https://github.com/mariamakbbh/slackbot_socketmode
 
 ARG SKAFFOLD_GO_GCFLAGS
 ARG TARGETOS
@@ -32,7 +32,7 @@ RUN make build
 
 FROM gcr.io/distroless/static:nonroot
 
-LABEL org.opencontainers.image.source=https://github.com/Mariamakbbh/Slackbot_SocketMode
+LABEL org.opencontainers.image.source=https://github.com/mariamakbbh/slackbot_socketmode
 
 COPY --from=builder /go/bin/app /app
 COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe

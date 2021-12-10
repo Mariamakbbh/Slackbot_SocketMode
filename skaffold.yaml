@@ -2,7 +2,7 @@ apiVersion: skaffold/v2beta14
 kind: Config
 build:
   artifacts:
-  - image: ghcr.io/Mariamakbbh/slack-socket-mode
+  - image: ghcr.io/mariamakbbh/slack-socket-mode
     sync:
       infer:
       - "main.go"
