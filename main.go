@@ -1,19 +1,17 @@
 package main
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"log"
 	"os"
-	"strings"
-	"time"
+	"os/signal"
+	"syscall"
 
 	"github.com/mariama/WebSocket_SlackBot/internal/config"
+	consumer "github.com/mariama/WebSocket_SlackBot/internal/slack"
 	"github.com/slack-go/slack"
-	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -22,6 +20,10 @@ func main() {
 	config.Load()
 	token := viper.GetString("slack.auth.token")
 	appToken := viper.GetString("slack.app.token")
+
+	l, _ := zap.NewDevelopment()
+	logger := l.Sugar()
+
 	// Create a new client to slack by giving token
 	// Set debug to true while developing
 	// Also add a ApplicationToken option to the client
@@ -34,115 +36,28 @@ func main() {
 		socketmode.OptionLog(log.New(os.Stdout, "socketmode: ", log.Lshortfile|log.LstdFlags)),
 	)
 
-	// Create a context that can be used to cancel goroutine
-	ctx, cancel := context.WithCancel(context.Background())
-	// Make this cancel called properly in a real program , graceful shutdown etc
-	defer cancel()
+	cfg := consumer.NewConfig(5, socketClient, logger)
+	svc := consumer.NewService(client, socketClient, logger)
 
-	go func(ctx context.Context, client *slack.Client, socketClient *socketmode.Client) {
-		// Create a for loop that selects either the context cancellation or the events incomming
-		for {
-			select {
-			// inscase context cancel is called exit the goroutine
-			case <-ctx.Done():
-				log.Println("Shutting down socketmode listener")
-				return
-			case event := <-socketClient.Events:
-				// We have a new Events, let's type switch the event
-				// Add more use cases here if you want to listen to other events.
-				switch event.Type {
-				// handle EventAPI events
-				case socketmode.EventTypeEventsAPI:
-					// The Event sent on the channel is not the same as the EventAPI events so we need to type cast it
-					eventsAPIEvent, ok := event.Data.(slackevents.EventsAPIEvent)
-					if !ok {
-						log.Printf("Could not type cast the event to the EventsAPIEvent: %v\n", event)
-						continue
-					}
-					// We need to send an Acknowledge to the slack server
-					socketClient.Ack(*event.Request)
-					// Now we have an Events API event, but this event type can in turn be many types, so we actually need another type switch
-					// log.Println(eventsAPIEvent)
-					// Now we have an Events API event, but this event type can in turn be many types, so we actually need another type switch
-					log.Println("* WebSocketBOT received an event")
-					err := handleEventMessage(eventsAPIEvent, client)
-					if err != nil {
-						// Replace with actual err handeling
-						log.Fatal(err)
-					}
-				}
+	sc := consumer.NewSocketChannelConsumer(
+		cfg,
+		svc,
+		consumer.NewNoopMonitor(),
+	)
 
-			}
-		}
-	}(ctx, client, socketClient)
+	sc.Start()
 
-	socketClient.Run()
-}
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
 
-// handleEventMessage will take an event and handle it properly based on the type of event
-func handleEventMessage(event slackevents.EventsAPIEvent, client *slack.Client) error {
-	switch event.Type {
-	// First we check if this is an CallbackEvent
-	case slackevents.CallbackEvent:
-		log.Println("* It's a callback event")
-		innerEvent := event.InnerEvent
-		// Yet Another Type switch on the actual Data to see if its an AppMentionEvent
-		switch ev := innerEvent.Data.(type) {
-		case *slackevents.AppMentionEvent:
-			// The application has been mentioned since this Event is a Mention event
-			log.Println("* WebSocketBOT did they mention you in Slack?")
-			err := handleAppMentionEvent(ev, client)
-			if err != nil {
-				return err
-			}
-		default:
-			log.Println("* It's callback but not App Mention Event")
-		}
-	default:
-		return errors.New("unsupported event type")
-	}
-	return nil
-}
+	// Block until we receive our signal.
+	<-c
 
-// handleAppMentionEvent is used to take care of the AppMentionEvent when the bot is mentioned
-func handleAppMentionEvent(event *slackevents.AppMentionEvent, client *slack.Client) error {
-	log.Println("* WebSocketBOT is this even running?")
-	// Grab the user name based on the ID of the one who mentioned the bot
-	user, err := client.GetUserInfo(event.User)
-	if err != nil {
-		return err
-	}
-	// Check if the user said Hello to the bot
-	text := strings.ToLower(event.Text)
-	log.Println("* WebSocketBOT who was the user that needs your help and what they want: ", user, text)
-	// Create the attachment and assigned based on the message
-	attachment := slack.Attachment{}
-	// Add Some default context like user who mentioned the bot
-	attachment.Fields = []slack.AttachmentField{
-		{
-			Title: "Date",
-			Value: time.Now().String(),
-		}, {
-			Title: "Initializer",
-			Value: user.Name,
-		},
-	}
-	if strings.Contains(text, "hello") {
-		// Greet the user
-		attachment.Text = fmt.Sprintf("Hello %s", user.Name)
-		attachment.Pretext = "Greetings"
-		attachment.Color = "#4af030"
-	} else {
-		// Send a message to the user
-		attachment.Text = fmt.Sprintf("How can I help you %s?", user.Name)
-		attachment.Pretext = "How can I be of service"
-		attachment.Color = "#3d3d3d"
-	}
-	// Send the message to the channel
-	// The Channel is available in the event message
-	_, _, err = client.PostMessage(event.Channel, slack.MsgOptionAttachments(attachment))
-	if err != nil {
-		return fmt.Errorf("failed to post message: %w", err)
-	}
-	return nil
+	sc.Stop()
+	// Optionally, you could run srv.Shutdown in a goroutine and block on
+	// <-ctx.Done() if your application should wait for other services
+	// to finalize based on context cancellation.
+	logger.Info("Shutting down")
+	os.Exit(0)
+
 }
